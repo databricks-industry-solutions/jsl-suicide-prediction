@@ -76,14 +76,6 @@ job_json = {
         "tasks": [
             {
                 "existing_cluster_id": cluster_id,
-                "notebook_task": {
-                    "notebook_path": "00-README"
-                },
-                "task_key": "MRA_01",
-                "description": ""
-            },
-            {
-                "existing_cluster_id": cluster_id,
                 "libraries": [],
                 "notebook_task": {
                     "notebook_path": "01-Suicide_Detection_PreAnn_Alab"
