@@ -1,4 +1,8 @@
 # Databricks notebook source
+# MAGIC %md This solution accelerator can also be found at https://github.com/databricks-industry-solutions/jsl-suicide-prediction.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Annotating Data & Training Custom NER model for Suicide Risk Prediction
 # MAGIC 
@@ -47,7 +51,6 @@ spark
 # MAGIC 2. Silver: After annotating the documents properly in Annotation Lab, train an NER model, get results
 
 # COMMAND ----------
-
 
 delta_bronze_path='/FileStore/HLS/nlp/delta/bronze/'
 
