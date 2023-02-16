@@ -25,6 +25,10 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install tensorflow_addons
+
+# COMMAND ----------
+
 import pandas as pd
 import os
 
@@ -259,10 +263,10 @@ summary
 
 
 # Set Credentials
-username=''
-password=''
-client_secret="" # see https://nlp.johnsnowlabs.com/docs/en/alab/api#get-client-secret
-annotationlab_url="" # your alab instance URL (could even be internal URL if deployed on-prem).
+username = 'admin'
+password = dbutils.secrets.get("solution-accelerator-cicd", "alab-password")
+client_secret = dbutils.secrets.get("solution-accelerator-cicd", "alab-client-secret")  # see https://nlp.johnsnowlabs.com/docs/en/alab/api#get-client-secret
+annotationlab_url = dbutils.secrets.get("solution-accelerator-cicd", "alab-url") # your alab instance URL (could even be internal URL if deployed on-prem).
 
 alab.set_credentials(
 
@@ -282,7 +286,7 @@ alab.set_credentials(
 # COMMAND ----------
 
 # create new project
-alab.create_project('suicide_detection')
+alab.create_project('suicide_detection') # Shows 400 if the project already exists. This error can be ignored
 
 # COMMAND ----------
 
@@ -498,7 +502,11 @@ ls -l /dbfs/ner/ner_logs/
 
 # COMMAND ----------
 
-with open('/dbfs/ner/ner_logs/MedicalNerApproach_eade548198a2.log', 'r') as f_:
+import fnmatch
+import os
+filename = fnmatch.filter(os.listdir('/dbfs/ner/ner_logs/'), 'MedicalNerApproach_*.log')[0]
+
+with open(f'/dbfs/ner/ner_logs/{filename}', 'r') as f_:
   lines = ''.join(f_)
 print (lines)
 
@@ -509,7 +517,7 @@ print (lines)
 
 # COMMAND ----------
 
-#save model
+# save model
 model.stages[-1].write().overwrite().save(delta_silver_path+'ner_model')
 
 # COMMAND ----------
@@ -565,3 +573,7 @@ results_single = light_model.fullAnnotate(text)[0]
 from sparknlp_display import NerVisualizer
 
 displayHTML(NerVisualizer().display(results_single, 'ner_chunk', return_html=True))
+
+# COMMAND ----------
+
+

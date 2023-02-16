@@ -32,6 +32,39 @@ from solacc.companion import NotebookSolutionCompanion
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC Before setting up the rest of the accelerator, we need to set up the JSL Annotation Lab, a reference in the accelerator notebook.
+# MAGIC 
+# MAGIC Follow the instruction doc by JSL (LINK!!!) here. Check the `./resource` folder to find scripts you need.
+# MAGIC 
+# MAGIC After following the steps there, you will have gathered a few credentials. Here we demonstrate using the [Databricks Secret Scope](https://docs.databricks.com/security/secrets/secret-scopes.html) for credential management. Copy the block of code below, replace the name the secret scope and fill in the credentials and execute the block. After executing the code, The accelerator notebook will be able to access the credentials it needs.
+# MAGIC 
+# MAGIC 
+# MAGIC ```
+# MAGIC client = NotebookSolutionCompanion().client
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/scopes/create", {"scope": "your-own-scope"})
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-password",
+# MAGIC   "string_value": '________'
+# MAGIC })
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-client-secret",
+# MAGIC   "string_value": "________"
+# MAGIC })
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-url",
+# MAGIC   "string_value": "________"
+# MAGIC })
+# MAGIC ```
+
+# COMMAND ----------
+
 cluster_json = {
     "num_workers": 8,
     "cluster_name": "jsl_sp_cluster",
@@ -80,7 +113,7 @@ job_json = {
                 "notebook_task": {
                     "notebook_path": "01-Suicide_Detection_PreAnn_Alab"
                 },
-                "task_key": "jsl_sp_02",
+                "task_key": "jsl_sp_01",
                 "description": ""
             }
         ]
