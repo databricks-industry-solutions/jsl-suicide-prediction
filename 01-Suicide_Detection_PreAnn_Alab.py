@@ -29,6 +29,14 @@
 
 # COMMAND ----------
 
+
+# COMMAND ----------
+
+# MAGIC %pip install protobuf==3.20.*
+
+# COMMAND ----------
+
+
 import pandas as pd
 import os
 
@@ -257,6 +265,11 @@ summary
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## <font color=#FF0000>**Note: If you don't have credentials for the Annotation Lab, we have provided the annotations for ~100 tasks. Jump to section 3.2 to directly download the exported JSON file, and start training**</font>.
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC #### 2.2. Set Annotation Lab credentials and Create a New Project
 
 # COMMAND ----------
@@ -316,6 +329,7 @@ alab.set_project_config(
 
 # MAGIC %md
 # MAGIC #### 2.4. Upload pre-annotations to the newly created project
+# MAGIC #### <font color=#FF0000>Note: You can upload all the tasks and annotate. For demo purpose, we are only uploading 5 tasks.</font>
 
 # COMMAND ----------
 
@@ -328,9 +342,9 @@ alab.upload_preannotations(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.5. Annotate documents on Annotation Lab and make necessary corrections
+# MAGIC #### 2.5. Annotate documents on Annotation Lab and make necessary corrections
 # MAGIC 
-# MAGIC **2.5.1 The first step for annotations is developing, and adhering to some guidelines, which are pertinent to control the flow of annotations and avoid confusions between entitiy types.**
+# MAGIC **2.5.1 The first step for annotations is developing, and adhering to some guidelines, which are crucial for controlling the flow of annotations and avoid confusions between entitiy types.**
 # MAGIC 
 # MAGIC **An example Annotation Guideline (AG) is available [here](https://github.com/JohnSnowLabs/spark-nlp-workshop/blob/master/databricks/python/healthcare_case_studies/data/suicide_pred_AG.docx).**
 # MAGIC 
@@ -380,7 +394,21 @@ dbutils.fs.ls(delta_silver_path)
 
 # COMMAND ----------
 
-alab.get_conll_data(spark, f"/dbfs/{delta_silver_path}result.json", output_name='conll_demo', save_dir=f"/dbfs/{delta_silver_path}")
+# MAGIC %md
+# MAGIC #### <font color=#FF0000>Note: For demo purpose, we are downloading the annotated tasks from a public source (instead of annotation lab).</font>
+# COMMAND ----------
+# MAGIC %sh
+# MAGIC 
+# MAGIC cd $delta_silver_path
+# MAGIC 
+# MAGIC wget -O suicide_pred_annotations.json https://github.com/JohnSnowLabs/spark-nlp-workshop/raw/master/databricks/python/healthcare_case_studies/data/suicide_pred_annotations.json
+# COMMAND ----------
+print (delta_silver_path)
+dbutils.fs.ls(delta_silver_path)
+# COMMAND ----------
+from sparknlp_jsl.alab import AnnotationLab
+alab = AnnotationLab()
+alab.get_conll_data(spark, f"/dbfs/{delta_silver_path}suicide_pred_annotations.json", output_name='conll_demo', save_dir=f"/dbfs/{delta_silver_path}")
 
 # COMMAND ----------
 
@@ -450,7 +478,7 @@ ner_graph_builder = TFGraphBuilder()\
     .setGraphFolder(graph_folder_path)\
     .setGraphFile("auto")\
     .setHiddenUnitsNumber(20)\
-    .setIsMedical(True) # False -> if you want to use TFGraphBuilder with NerDLApproach
+    .setIsLicensed(True) # False -> if you want to use TFGraphBuilder with NerDLApproach
 
 # COMMAND ----------
 
