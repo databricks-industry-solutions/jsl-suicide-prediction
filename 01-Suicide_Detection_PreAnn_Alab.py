@@ -25,17 +25,9 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install tensorflow_addons
+# MAGIC %pip install tensorflow_addons protobuf==3.20.*
 
 # COMMAND ----------
-
-
-# COMMAND ----------
-
-# MAGIC %pip install protobuf==3.20.*
-
-# COMMAND ----------
-
 
 import pandas as pd
 import os
@@ -274,7 +266,6 @@ summary
 
 # COMMAND ----------
 
-
 # Set Credentials
 username = 'admin'
 password = dbutils.secrets.get("solution-accelerator-cicd", "alab-password")
@@ -396,16 +387,22 @@ dbutils.fs.ls(delta_silver_path)
 
 # MAGIC %md
 # MAGIC #### <font color=#FF0000>Note: For demo purpose, we are downloading the annotated tasks from a public source (instead of annotation lab).</font>
+
 # COMMAND ----------
+
 # MAGIC %sh
 # MAGIC 
 # MAGIC cd $delta_silver_path
 # MAGIC 
 # MAGIC wget -O suicide_pred_annotations.json https://github.com/JohnSnowLabs/spark-nlp-workshop/raw/master/databricks/python/healthcare_case_studies/data/suicide_pred_annotations.json
+
 # COMMAND ----------
+
 print (delta_silver_path)
 dbutils.fs.ls(delta_silver_path)
+
 # COMMAND ----------
+
 from sparknlp_jsl.alab import AnnotationLab
 alab = AnnotationLab()
 alab.get_conll_data(spark, f"/dbfs/{delta_silver_path}suicide_pred_annotations.json", output_name='conll_demo', save_dir=f"/dbfs/{delta_silver_path}")
@@ -477,8 +474,7 @@ ner_graph_builder = TFGraphBuilder()\
     .setLabelColumn("label")\
     .setGraphFolder(graph_folder_path)\
     .setGraphFile("auto")\
-    .setHiddenUnitsNumber(20)\
-    .setIsLicensed(True) # False -> if you want to use TFGraphBuilder with NerDLApproach
+    .setHiddenUnitsNumber(20)
 
 # COMMAND ----------
 
