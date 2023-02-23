@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: Apache-2.0
+Description: 'AWS CloudFormation To access NLP Lab via https:
+  Create an Amazon EC2 instance running the NLP Lab Amazon Linux AMI. Once the
+  NLP Lab instance is created, provide instance id as input. This Cloudfromation
+  Creates ELB and Cloudfront, You can use Cloudfront Domain URL to access NLP Lab
+  via https protocol.
+  '
+Parameters:
+  NLPlabInstanceId:
+    Description: Name of the NLP Lab InstanceID
+    Type: String
+    ConstraintDescription: NLP Lab InstanceID
+
+Resources:
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: LambdaExecuteRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: Allow
+                Action: [ "ec2:Get*","ec2:Describe*","ec2:List*"]
+                Resource: "*"
+              - Effect: Allow
+                Action: [ "ec2:RevokeSecurityGroupIngress" ]
+                Resource:
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${NLPlabInstanceId}'
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*'
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt [LambdaExecutionRole, Arn]
+      Description: Get info from the Instance Id
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import cfnresponse
+          import logging
+
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+          def lambda_handler(event, context):
+              if event.get('RequestType') == 'Create':
+                   print(f"REQUEST BODY:  {event}")
+                   instance_id = (event['ResourceProperties']['instance_id'])
+                   print(f"instance_id is   {instance_id}")
+
+                   client = boto3.client('ec2')
+                   ec2_response=client.describe_instances(InstanceIds=[instance_id])
+
+                   ec2_subnet_id=ec2_response["Reservations"][0]["Instances"][0]["SubnetId"]
+                   vpc_id=ec2_response["Reservations"][0]["Instances"][0]["VpcId"]
+                   sg_id=ec2_response["Reservations"][0]["Instances"][0]["SecurityGroups"][0]["GroupId"]
+
+                   vpc_response=client.describe_subnets(Filters=[{'Name': 'vpc-id','Values': [vpc_id]}])
+                   subnet_ids=[s["SubnetId"] for s in vpc_response["Subnets"] if s["DefaultForAz"] == True ]
+
+                   if len(subnet_ids) == 0 or len(subnet_ids) == 1:
+                       subnets_azs={}
+                       for subnet in vpc_response["Subnets"]:
+                           subnets_azs[subnet["AvailabilityZone"]]=subnet["SubnetId"]
+                       print(subnets_azs)
+                       subnet_ids=list(subnets_azs.values())
+
+                   sg_response=client.describe_security_groups(GroupIds=[sg_id])
+                   sg_ip_permissions = sg_response["SecurityGroups"][0]["IpPermissions"]
+                   for revoke_permission in sg_ip_permissions:
+                       print(revoke_permission)
+                       if "FromPort" in revoke_permission.keys() and "ToPort" in revoke_permission.keys():
+                           if revoke_permission["FromPort"] == 80 and revoke_permission["ToPort"] == 80:
+                               client.revoke_security_group_ingress(GroupId=sg_id, IpPermissions=[revoke_permission])
+                               print("SecurityGroup rule for port 80 is removed")
+
+                   responseStatus = 'SUCCESS'
+                   responseData = {'security_group_id': sg_id, 'vpc_id': vpc_id, 'subnet_ids': subnet_ids, 'ec2_subnet_id': [ec2_subnet_id]}
+                   print(f"RESPONSE BODY: {responseData}")
+
+                   logging.info('Sending %s to cloudformation', responseData)
+                   cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+
+              if event.get('RequestType') == 'Delete':
+                  responseData = {}
+                  responseData['message'] = "Goodbye from lambda"
+                  logging.info('Sending %s to cloudformation', responseData)
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+
+  EC2FetchCustomResource:
+    Type: Custom::EC2Info
+    Properties:
+      ServiceToken: !GetAtt [LambdaFunction, Arn]
+      instance_id: !Ref 'NLPlabInstanceId'
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTPS & HTTP Access for ELB
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+      VpcId: !GetAtt [EC2FetchCustomResource, vpc_id]
+
+  SecurityGroupAddHTTPSRuleFromELB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      SourceSecurityGroupId: !GetAtt [ LoadBalancerSecurityGroup, GroupId ]
+      FromPort: 443
+      ToPort: 443
+      IpProtocol: tcp
+      GroupId: !GetAtt [ EC2FetchCustomResource, security_group_id ]
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: 'internet-facing'
+      Subnets: !GetAtt [ EC2FetchCustomResource, subnet_ids ]
+      SecurityGroups:
+        - !GetAtt [ LoadBalancerSecurityGroup, GroupId ]
+      Type: 'application'
+
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref HTTPTargetGroup
+
+  HTTPTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: True
+      Port: 443
+      Protocol: 'HTTPS'
+      Targets:
+        - Id: !Ref NLPlabInstanceId
+      TargetType: 'instance'
+      VpcId: !GetAtt [EC2FetchCustomResource, vpc_id]
+
+  CloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: True
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          DefaultTTL: 0
+          MaxTTL: 0
+          MinTTL: 0
+          Compress: True
+          ForwardedValues:
+            QueryString: true
+            Headers:
+              - '*'
+            Cookies:
+              Forward: all
+          TargetOriginId: ELBCustomOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        Origins:
+          - DomainName: !GetAtt [LoadBalancer, DNSName]
+            Id: ELBCustomOrigin
+            CustomOriginConfig:
+              HTTPPort: '80'
+              OriginProtocolPolicy: http-only
+Outputs:
+  CloudfrontURL:
+    Description: Cloudfront URL to access NLP Lab
+    Value: !Join ["", ['https://', !GetAtt [CloudFront, DomainName]]]

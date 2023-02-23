@@ -1,4 +1,8 @@
 # Databricks notebook source
+# MAGIC %md This solution accelerator can also be found at https://github.com/databricks-industry-solutions/jsl-suicide-prediction.
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Annotating Data & Training Custom NER model for Suicide Risk Prediction
 # MAGIC 
@@ -18,6 +22,10 @@
 
 # MAGIC %md
 # MAGIC ## 0. Initial Configurations
+
+# COMMAND ----------
+
+# MAGIC %pip install tensorflow_addons protobuf==3.20.*
 
 # COMMAND ----------
 
@@ -47,7 +55,6 @@ spark
 # MAGIC 2. Silver: After annotating the documents properly in Annotation Lab, train an NER model, get results
 
 # COMMAND ----------
-
 
 delta_bronze_path='/FileStore/HLS/nlp/delta/bronze/'
 
@@ -250,16 +257,20 @@ summary
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## <font color=#FF0000>**Note: If you don't have credentials for the Annotation Lab, we have provided the annotations for ~100 tasks. Jump to section 3.2 to directly download the exported JSON file, and start training**</font>.
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC #### 2.2. Set Annotation Lab credentials and Create a New Project
 
 # COMMAND ----------
 
-
 # Set Credentials
-username=''
-password=''
-client_secret="" # see https://nlp.johnsnowlabs.com/docs/en/alab/api#get-client-secret
-annotationlab_url="" # your alab instance URL (could even be internal URL if deployed on-prem).
+username = 'admin'
+password = dbutils.secrets.get("solution-accelerator-cicd", "alab-password")
+client_secret = dbutils.secrets.get("solution-accelerator-cicd", "alab-client-secret")  # see https://nlp.johnsnowlabs.com/docs/en/alab/api#get-client-secret
+annotationlab_url = dbutils.secrets.get("solution-accelerator-cicd", "alab-url") # your alab instance URL (could even be internal URL if deployed on-prem).
 
 alab.set_credentials(
 
@@ -279,7 +290,7 @@ alab.set_credentials(
 # COMMAND ----------
 
 # create new project
-alab.create_project('suicide_detection')
+alab.create_project('suicide_detection') # Shows 400 if the project already exists. This error can be ignored
 
 # COMMAND ----------
 
@@ -309,6 +320,7 @@ alab.set_project_config(
 
 # MAGIC %md
 # MAGIC #### 2.4. Upload pre-annotations to the newly created project
+# MAGIC #### <font color=#FF0000>Note: You can upload all the tasks and annotate. For demo purpose, we are only uploading 5 tasks.</font>
 
 # COMMAND ----------
 
@@ -321,9 +333,9 @@ alab.upload_preannotations(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 2.5. Annotate documents on Annotation Lab and make necessary corrections
+# MAGIC #### 2.5. Annotate documents on Annotation Lab and make necessary corrections
 # MAGIC 
-# MAGIC **2.5.1 The first step for annotations is developing, and adhering to some guidelines, which are pertinent to control the flow of annotations and avoid confusions between entitiy types.**
+# MAGIC **2.5.1 The first step for annotations is developing, and adhering to some guidelines, which are crucial for controlling the flow of annotations and avoid confusions between entitiy types.**
 # MAGIC 
 # MAGIC **An example Annotation Guideline (AG) is available [here](https://github.com/JohnSnowLabs/spark-nlp-workshop/blob/master/databricks/python/healthcare_case_studies/data/suicide_pred_AG.docx).**
 # MAGIC 
@@ -373,7 +385,27 @@ dbutils.fs.ls(delta_silver_path)
 
 # COMMAND ----------
 
-alab.get_conll_data(spark, f"/dbfs/{delta_silver_path}result.json", output_name='conll_demo', save_dir=f"/dbfs/{delta_silver_path}")
+# MAGIC %md
+# MAGIC #### <font color=#FF0000>Note: For demo purpose, we are downloading the annotated tasks from a public source (instead of annotation lab).</font>
+
+# COMMAND ----------
+
+# MAGIC %sh
+# MAGIC 
+# MAGIC cd $delta_silver_path
+# MAGIC 
+# MAGIC wget -O suicide_pred_annotations.json https://github.com/JohnSnowLabs/spark-nlp-workshop/raw/master/databricks/python/healthcare_case_studies/data/suicide_pred_annotations.json
+
+# COMMAND ----------
+
+print (delta_silver_path)
+dbutils.fs.ls(delta_silver_path)
+
+# COMMAND ----------
+
+from sparknlp_jsl.alab import AnnotationLab
+alab = AnnotationLab()
+alab.get_conll_data(spark, f"/dbfs/{delta_silver_path}suicide_pred_annotations.json", output_name='conll_demo', save_dir=f"/dbfs/{delta_silver_path}")
 
 # COMMAND ----------
 
@@ -442,8 +474,7 @@ ner_graph_builder = TFGraphBuilder()\
     .setLabelColumn("label")\
     .setGraphFolder(graph_folder_path)\
     .setGraphFile("auto")\
-    .setHiddenUnitsNumber(20)\
-    .setIsMedical(True) # False -> if you want to use TFGraphBuilder with NerDLApproach
+    .setHiddenUnitsNumber(20)
 
 # COMMAND ----------
 
@@ -495,7 +526,11 @@ ls -l /dbfs/ner/ner_logs/
 
 # COMMAND ----------
 
-with open('/dbfs/ner/ner_logs/MedicalNerApproach_eade548198a2.log', 'r') as f_:
+import fnmatch
+import os
+filename = fnmatch.filter(os.listdir('/dbfs/ner/ner_logs/'), 'MedicalNerApproach_*.log')[0]
+
+with open(f'/dbfs/ner/ner_logs/{filename}', 'r') as f_:
   lines = ''.join(f_)
 print (lines)
 
@@ -506,7 +541,7 @@ print (lines)
 
 # COMMAND ----------
 
-#save model
+# save model
 model.stages[-1].write().overwrite().save(delta_silver_path+'ner_model')
 
 # COMMAND ----------
@@ -562,3 +597,7 @@ results_single = light_model.fullAnnotate(text)[0]
 from sparknlp_display import NerVisualizer
 
 displayHTML(NerVisualizer().display(results_single, 'ner_chunk', return_html=True))
+
+# COMMAND ----------
+
+

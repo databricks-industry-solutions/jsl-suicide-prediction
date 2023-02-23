@@ -3,7 +3,7 @@
 # MAGIC 🎉
 # MAGIC 
 # MAGIC **Steps**
-# MAGIC 1. Simply attach this notebook to a cluster with DBR 11.0 and above, and hit Run-All for this notebook. A multi-step job and the clusters used in the job will be created for you and hyperlinks are printed on the last block of the notebook. 
+# MAGIC 1. Simply attach this notebook to a cluster and hit Run-All for this notebook. A multi-step job and the clusters used in the job will be created for you and hyperlinks are printed on the last block of the notebook. 
 # MAGIC 
 # MAGIC 2. Run the accelerator notebooks: Feel free to explore the multi-step job page and **run the Workflow**, or **run the notebooks interactively** with the cluster to see how this solution accelerator executes. 
 # MAGIC 
@@ -32,9 +32,42 @@ from solacc.companion import NotebookSolutionCompanion
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC Before setting up the rest of the accelerator, we need to set up the JSL Annotation Lab, a reference in the accelerator notebook.
+# MAGIC 
+# MAGIC Follow the instruction doc by JSL (LINK!!!) here. Check the `./resource` folder to find scripts you need.
+# MAGIC 
+# MAGIC After following the steps there, you will have gathered a few credentials. Here we demonstrate using the [Databricks Secret Scope](https://docs.databricks.com/security/secrets/secret-scopes.html) for credential management. Copy the block of code below, replace the name the secret scope and fill in the credentials and execute the block. After executing the code, The accelerator notebook will be able to access the credentials it needs.
+# MAGIC 
+# MAGIC 
+# MAGIC ```
+# MAGIC client = NotebookSolutionCompanion().client
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/scopes/create", {"scope": "your-own-scope"})
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-password",
+# MAGIC   "string_value": '________'
+# MAGIC })
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-client-secret",
+# MAGIC   "string_value": "________"
+# MAGIC })
+# MAGIC 
+# MAGIC client.execute_post_json(f"{client.endpoint}/api/2.0/secrets/put", {
+# MAGIC   "scope": "your-own-scope",
+# MAGIC   "key": "alab-url",
+# MAGIC   "string_value": "________"
+# MAGIC })
+# MAGIC ```
+
+# COMMAND ----------
+
 cluster_json = {
     "num_workers": 8,
-    "cluster_name": "MRA_cluster",
+    "cluster_name": "jsl_sp_cluster",
     "spark_version": "9.1.x-cpu-ml-scala2.12", 
     "spark_conf": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -80,13 +113,8 @@ job_json = {
                 "notebook_task": {
                     "notebook_path": "01-Suicide_Detection_PreAnn_Alab"
                 },
-                "task_key": "MRA_02",
-                "description": "",
-                "depends_on": [
-                    {
-                        "task_key": "MRA_01"
-                    }
-                ]
+                "task_key": "jsl_sp_01",
+                "description": ""
             }
         ]
     }
@@ -100,5 +128,3 @@ nsc.deploy_compute(job_json, run_job=run_job, wait=3600)
 # COMMAND ----------
 
 
-
-# COMMAND ----------
